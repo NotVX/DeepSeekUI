@@ -157,7 +157,7 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 
 	local label = Instance.new("TextLabel")
 	label.Name = "SliderLabel"
-	label.Text = string.format("%s : %.1f", text, math.floor(sliderValue))
+	label.Text = string.format("%s : %.1f", text, sliderValue)
 	label.BackgroundTransparency = 1
 	label.TextColor3 = self._style.TextColor
 	label.Font = self._style.Font
@@ -219,7 +219,7 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 
 		fill.Size = UDim2.new(ratio, 0, 1, 0)
 		thumb.Position = UDim2.new(ratio, -6, 0.5, 0)
-		label.Text = string.format("%s : %.1f", text, math.floor(sliderValue))
+		label.Text = string.format("%s : %.1f", text, sliderValue)
 
 		callback(sliderValue)
 	end
