@@ -207,7 +207,7 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 	local thumbCorner = Instance.new("UICorner")
 	thumbCorner.CornerRadius = UDim.new(1, 0)
 	thumbCorner.Parent = thumb
-	
+
 	local function roundToStep(value)
 		return math.floor((value / step) + 0.5) * step
 	end
@@ -358,7 +358,7 @@ function MenuUI:AddSlider(menuId, text, minValue, maxValue, initialValue, step, 
 	return slider
 end
 
-function MenuUI:AddLabel(menuId, text)
+function MenuUI:AddLabel(menuId, labelId, text)
 	local menu = self._menus[menuId]
 	if not menu then return end
 
@@ -378,7 +378,7 @@ function MenuUI:AddLabel(menuId, text)
 	padding.PaddingRight = UDim.new(0, 8)
 	padding.Parent = label
 
-	table.insert(menu.Items, {Type = "Label", Element = label})
+	table.insert(menu.Items, {Type = "Label", Element = label, Id = labelId})
 	return label
 end
 
@@ -396,6 +396,17 @@ function MenuUI:AddSeparator(menuId)
 
 	table.insert(menu.Items, {Type = "Separator", Element = separator})
 	return separator
+end
+
+function MenuUI:ChangeLabelText(menuId, labelId, text)
+	local menu = self._menus[menuId]
+	if not menu then return end
+	
+	for i, v in menu.Items do
+		if v.Type == "Label" and v.Id == labelId and v.Element then
+			v.Element.Text = text
+		end
+	end
 end
 
 -- Menu visibility control
