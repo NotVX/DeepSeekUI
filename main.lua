@@ -275,6 +275,8 @@ function MenuUI:CreateMenu(menuId, options)
 	screenGui.Name = menuId .. "Menu"
 	screenGui.Parent = self._parent
 	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 9999
+	screenGui.IgnoreGuiInset = true
 
 	local mainFrame = Instance.new("Frame")
 	mainFrame.Name = "MainFrame"
