@@ -1,3 +1,5 @@
+-- slider edit
+
 local MenuUI = {}
 MenuUI.__index = MenuUI
 
@@ -25,6 +27,24 @@ function MenuUI.new(options)
 	self._openMenus = {}
 
 	return self
+end
+
+function MenuUI:_getDragDetector(menuId: string)
+	local menu = self._menus[menuId]
+
+	if menu then
+		return menu.DragDetector
+	end
+
+	return
+end
+
+function MenuUI:_setMenuDraggingEnabled(menuId: string, enabled: boolean)
+	local MenuDragger = self:_getDragDetector(menuId)
+
+	if MenuDragger then
+		MenuDragger.Enabled = enabled
+	end
 end
 
 -- Create a basic button element
@@ -141,19 +161,127 @@ function MenuUI:_CreateToggle(text, initialState, callback, parent)
 		callback(isToggled)
 	end)
 
+	if isToggled then
+		pcall(callback, isToggled)
+	end
+
 	updateAppearance()
 	return toggle
 end
 
--- Create a slider element
-function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, callback, parent)
+-- Create a menu container
+function MenuUI:CreateMenu(menuId, options)
+	options = options or {}
+	options.MaxHeight = options.MaxHeight or math.huge
+	options.Width = options.Width or 200
+	options.Position = options.Position or UDim2.new(0, 10, 0, 10)
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = menuId .. "Menu"
+	screenGui.Parent = self._parent
+	screenGui.ResetOnSpawn = false
+	screenGui.DisplayOrder = 9999
+	screenGui.IgnoreGuiInset = true
+
+	local mainFrame = Instance.new("Frame")
+	mainFrame.Name = "MainFrame"
+	mainFrame.BackgroundColor3 = self._style.BackgroundColor
+	mainFrame.BackgroundTransparency = self._style.BackgroundTransparency
+	mainFrame.Size = UDim2.new(0, options.Width, 0, 0)
+	mainFrame.Position = options.Position
+	mainFrame.ClipsDescendants = true
+	mainFrame.Parent = screenGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = self._style.CornerRadius
+	corner.Parent = mainFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = self._style.BorderColor
+	stroke.Thickness = 1
+	stroke.Parent = mainFrame
+
+	local container = Instance.new("ScrollingFrame")
+	container.Name = "Container"
+	container.BackgroundTransparency = 1
+	container.Size = UDim2.new(1, 0, 1, 0)
+	container.CanvasSize = UDim2.fromOffset(0, 0)
+	container.ScrollBarThickness = 2
+	container.Parent = mainFrame
+
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 2)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = container
+
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 8)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 4)
+	padding.PaddingRight = UDim.new(0, 4)
+	padding.Parent = container
+
+	local uiDragDetector = Instance.new("UIDragDetector")
+	uiDragDetector.ResponseStyle = Enum.UIDragDetectorResponseStyle.Scale
+	uiDragDetector.Parent = mainFrame
+
+	local menu = {
+		ScreenGui = screenGui,
+		MainFrame = mainFrame,
+		Container = container,
+		DragDetector = uiDragDetector,
+		Layout = layout,
+		Items = {}
+	}
+
+	self._menus[menuId] = menu
+
+	-- Auto-size the menu
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		local newSize = layout.AbsoluteContentSize.Y + 16
+
+		if newSize > options.MaxHeight then
+			container.CanvasSize = UDim2.new(0, 0, 1, newSize - options.MaxHeight)
+			mainFrame.Size = UDim2.new(mainFrame.Size.X.Scale, mainFrame.Size.X.Offset, 0, options.MaxHeight)
+		else
+			container.CanvasSize = UDim2.new(0, 0, 0, 0)
+			mainFrame.Size = UDim2.new(mainFrame.Size.X.Scale, mainFrame.Size.X.Offset, 0, newSize)
+		end
+	end)
+
+	return menu
+end
+
+-- Add items to menu
+function MenuUI:AddButton(menuId, elementId, text, callback)
+	local menu = self._menus[menuId]
+	if not menu then return end
+
+	local button = self:_CreateButton(text, callback, menu.Container)
+	table.insert(menu.Items, {Type = "Button", Element = button, Id = elementId})
+	return button
+end
+
+function MenuUI:AddToggle(menuId, elementId, text, initialState, callback)
+	local menu = self._menus[menuId]
+	if not menu then return end
+
+	local toggle = self:_CreateToggle(text, initialState, callback, menu.Container)
+	table.insert(menu.Items, {Type = "Toggle", Element = toggle, Id = elementId})
+	return toggle
+end
+
+function MenuUI:AddSlider(menuId, elementId, text, minValue, maxValue, initialValue, step, callback)
+	local menu = self._menus[menuId]
+	if not menu then return end
+
 	local sliderValue = initialValue or minValue
 
 	local sliderContainer = Instance.new("Frame")
 	sliderContainer.Name = "SliderContainer"
 	sliderContainer.BackgroundTransparency = 1
 	sliderContainer.Size = UDim2.new(1, 0, 0, self._style.ItemHeight + 20)
-	sliderContainer.Parent = parent
+	sliderContainer.Parent = menu.Container
 
 	local label = Instance.new("TextLabel")
 	label.Name = "SliderLabel"
@@ -174,7 +302,7 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 	local track = Instance.new("Frame")
 	track.Name = "SliderTrack"
 	track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-	track.Size = UDim2.new(1, -16, 0, 4)
+	track.Size = UDim2.new(1, -16, 0, 6)
 	track.Position = UDim2.new(0, 8, 1, -8)
 	track.BorderSizePixel = 0
 	track.Parent = sliderContainer
@@ -228,11 +356,13 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 
 	thumb.MouseButton1Down:Connect(function()
 		isDragging = true
+		self:_setMenuDraggingEnabled(menuId, false)
 	end)
 
 	game:GetService("UserInputService").InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			isDragging = false
+			self:_setMenuDraggingEnabled(menuId, true)
 		end
 	end)
 
@@ -247,6 +377,7 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 
 			local value = minValue + (relativeX * (maxValue - minValue))
 			updateSlider(value)
+			self:_setMenuDraggingEnabled(menuId, false)
 		end
 	end)
 
@@ -261,106 +392,16 @@ function MenuUI:_CreateSlider(text, minValue, maxValue, initialValue, step, call
 
 			local value = minValue + (relativeX * (maxValue - minValue))
 			updateSlider(value)
+			self:_setMenuDraggingEnabled(menuId, false)
 		end
 	end)
+
+	table.insert(menu.Items, {Type = "Slider", Element = sliderContainer, Id = elementId})
 
 	return sliderContainer
 end
 
--- Create a menu container
-function MenuUI:CreateMenu(menuId, options)
-	options = options or {}
-
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = menuId .. "Menu"
-	screenGui.Parent = self._parent
-	screenGui.ResetOnSpawn = false
-	screenGui.DisplayOrder = 9999
-	screenGui.IgnoreGuiInset = true
-
-	local mainFrame = Instance.new("Frame")
-	mainFrame.Name = "MainFrame"
-	mainFrame.BackgroundColor3 = self._style.BackgroundColor
-	mainFrame.BackgroundTransparency = self._style.BackgroundTransparency
-	mainFrame.Size = UDim2.new(0, options.Width or 200, 0, 0) -- Height will be auto-adjusted
-	mainFrame.Position = options.Position or UDim2.new(0, 10, 0, 10)
-	mainFrame.ClipsDescendants = true
-	mainFrame.Parent = screenGui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = self._style.CornerRadius
-	corner.Parent = mainFrame
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = self._style.BorderColor
-	stroke.Thickness = 1
-	stroke.Parent = mainFrame
-
-	local container = Instance.new("Frame")
-	container.Name = "Container"
-	container.BackgroundTransparency = 1
-	container.Size = UDim2.new(1, 0, 1, 0)
-	container.Parent = mainFrame
-
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 2)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = container
-
-	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0, 8)
-	padding.PaddingBottom = UDim.new(0, 8)
-	padding.PaddingLeft = UDim.new(0, 4)
-	padding.PaddingRight = UDim.new(0, 4)
-	padding.Parent = container
-
-	local menu = {
-		ScreenGui = screenGui,
-		MainFrame = mainFrame,
-		Container = container,
-		Layout = layout,
-		Items = {}
-	}
-
-	self._menus[menuId] = menu
-
-	-- Auto-size the menu
-	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		mainFrame.Size = UDim2.new(mainFrame.Size.X.Scale, mainFrame.Size.X.Offset, 0, layout.AbsoluteContentSize.Y + 16)
-	end)
-
-	return menu
-end
-
--- Add items to menu
-function MenuUI:AddButton(menuId, text, callback)
-	local menu = self._menus[menuId]
-	if not menu then return end
-
-	local button = self:_CreateButton(text, callback, menu.Container)
-	table.insert(menu.Items, {Type = "Button", Element = button})
-	return button
-end
-
-function MenuUI:AddToggle(menuId, text, initialState, callback)
-	local menu = self._menus[menuId]
-	if not menu then return end
-
-	local toggle = self:_CreateToggle(text, initialState, callback, menu.Container)
-	table.insert(menu.Items, {Type = "Toggle", Element = toggle})
-	return toggle
-end
-
-function MenuUI:AddSlider(menuId, text, minValue, maxValue, initialValue, step, callback)
-	local menu = self._menus[menuId]
-	if not menu then return end
-
-	local slider = self:_CreateSlider(text, minValue, maxValue, initialValue, step, callback, menu.Container)
-	table.insert(menu.Items, {Type = "Slider", Element = slider})
-	return slider
-end
-
-function MenuUI:AddLabel(menuId, labelId, text)
+function MenuUI:AddLabel(menuId, elementId, text)
 	local menu = self._menus[menuId]
 	if not menu then return end
 
@@ -380,7 +421,7 @@ function MenuUI:AddLabel(menuId, labelId, text)
 	padding.PaddingRight = UDim.new(0, 8)
 	padding.Parent = label
 
-	table.insert(menu.Items, {Type = "Label", Element = label, Id = labelId})
+	table.insert(menu.Items, {Type = "Label", Element = label, Id = elementId})
 	return label
 end
 
@@ -403,10 +444,27 @@ end
 function MenuUI:ChangeLabelText(menuId, labelId, text)
 	local menu = self._menus[menuId]
 	if not menu then return end
-	
+
 	for i, v in menu.Items do
 		if v.Type == "Label" and v.Id == labelId and v.Element then
 			v.Element.Text = text
+		end
+	end
+end
+
+function MenuUI:DestroyElementById(menuId, elementId)
+	local menu = self._menus[menuId]
+	if not menu then return end
+
+	for i, v in menu.Items do
+		if v.Id == elementId and typeof(v.Element) == "Instance" then
+			v.Element:Destroy()
+
+			local Index = table.find(menu.Items, v)
+
+			if Index then
+				table.remove(menu.Items, Index)
+			end
 		end
 	end
 end
